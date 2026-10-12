@@ -6,6 +6,7 @@
 <title>SonyGrab</title>
 <style>
 :root{
+  color-scheme:light dark;
   --bg:#f6f6f7; --panel:#fff; --ink:#16171a; --muted:#6b6f76; --line:#e3e4e8;
   --accent:#2f6feb; --accent-ink:#fff; --ok:#1a7f4b; --warn:#8a5a12; --err:#c0392b;
   --warnbg:rgba(224,164,74,.14); --okbg:rgba(26,127,75,.09); --errbg:rgba(192,57,43,.09);
@@ -51,6 +52,14 @@ button.danger{color:var(--err)}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
 select,input[type=text],input[type=number]{font:inherit;background:var(--chip);color:var(--ink);
   border:1px solid var(--line);border-radius:7px;padding:5px 9px}
+/* Safari's engine, which the app's own window uses, otherwise draws the system
+   pop-up button inside this box. Draw the arrow ourselves instead. */
+select{-webkit-appearance:none;appearance:none;cursor:pointer;padding-right:28px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b6f76' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;background-size:10px 6px}
+@media (prefers-color-scheme:dark){
+  select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239aa0a8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+}
 input[type=range]{accent-color:var(--accent);vertical-align:middle}
 label.ck{display:flex;align-items:center;gap:6px;cursor:pointer}
 label.ck input{accent-color:var(--accent);width:15px;height:15px;margin:0;flex:none}

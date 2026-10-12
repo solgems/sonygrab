@@ -20,7 +20,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 CODE=(core.py photo.py compress.py pipeline.py server.py ui.html)
-VENDOR_REV=3                            # bump when vendor/ or the app around the code changes
+VENDOR_REV=4                            # bump when vendor/ or the app around the code changes
 
 die() { echo "$*" >&2; exit 1; }
 

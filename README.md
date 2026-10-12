@@ -19,25 +19,26 @@ Apple developer. Getting past that takes a minute, once:
    **Done** or **Cancel**. **Do not click Move to Trash.**
 3. Open **System Settings → Privacy & Security**, scroll down to the note about
    SonyGrab and click **Open Anyway**. Enter your Mac password if asked.
-4. Open SonyGrab again and choose **Open**. It appears in your web browser.
+4. Open SonyGrab again and choose **Open**. Its window appears.
 
 After that it opens normally and keeps itself up to date. The first time you
 import, macOS may ask to let it read the card. Click **Allow**.
 
 ## Run it
 
-Double-click **SonyGrab.app**. It opens in your browser, and sits in the Dock for as
-long as it is running.
+Double-click **SonyGrab.app**. It opens in a window of its own and sits in the
+Dock for as long as it is running.
 
-Clicking the Dock icon, or opening the app again, brings the tab back rather than
-starting a second copy.
+Clicking the Dock icon, or opening the app again, brings the window back rather
+than starting a second copy.
 
-**To stop it:** **Quit** from the Dock icon or the menu bar, or the **Quit** button
-at the top right of the page. Both ask first if an import is still running. If you
-close the tab and forget, it quits by itself after 15 minutes idle (never
-mid-import).
+**To stop it:** close the window, or **Quit** from the Dock icon or the menu bar,
+or use the **Quit** button at the top right. Each asks first if an import is
+still running.
 
-Other ways in, if you prefer a terminal:
+Other ways in, if you prefer a terminal. These open the same page in your
+browser instead, and quit by themselves after 15 minutes with no tab open
+(never mid-import):
 
     python3 server.py          # Ctrl-C to quit
     ./SonyGrab.command         # same, in its own Terminal window
@@ -290,7 +291,7 @@ Each tool is optional; the UI says so and disables what it can't do.
 
     fetch_vendor.sh  downloads Python, Pillow, ffmpeg and exiftool into vendor/
     build_app.sh     assembles and seals SonyGrab.app  (--out, --update-url, --version)
-    SonyGrab.m       the app's front end: Dock icon, reopen, Quit
+    SonyGrab.m       the app's front end: its window, Dock icon and Quit
     smoke_test.sh    end-to-end check of a built app
     update_test.sh   rehearsal of releasing and self-updating
     release.sh       builds, tests and publishes a release

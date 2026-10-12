@@ -13,7 +13,7 @@ cd "$(dirname "$0")"
 
 APP="SonyGrab.app"
 VERSION="${SONYGRAB_VERSION:-0}"
-VENDOR_REV="${SONYGRAB_VENDOR_REV:-3}"
+VENDOR_REV="${SONYGRAB_VENDOR_REV:-4}"
 UPDATE_URL="${SONYGRAB_UPDATE_URL:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -59,8 +59,8 @@ cat > "$APP/Contents/Resources/update.conf" <<CONF
 url = $UPDATE_URL
 CONF
 
-# NSAllowsLocalNetworking is for the front end's calls to the server on this
-# Mac, which are plain HTTP to 127.0.0.1.
+# NSAllowsLocalNetworking is for the front end showing and calling the server
+# on this Mac, which is plain HTTP to 127.0.0.1.
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -81,22 +81,23 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-# The front end is what macOS runs and shows in the Dock. It is the only
-# compiled part, built for both kinds of Mac so that an Intel one gets as far
-# as the launcher's explanation instead of a bare refusal from the Finder.
+# The front end is what macOS runs: the Dock icon and the window the page is
+# shown in. It is the only compiled part, built for both kinds of Mac so that
+# an Intel one gets as far as the launcher's explanation instead of a bare
+# refusal from the Finder.
 if ! xcrun --find clang >/dev/null 2>&1; then
   echo "Building needs Apple's command line tools:  xcode-select --install" >&2
   exit 1
 fi
 xcrun clang -fobjc-arc -O2 -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 \
-    -framework Cocoa -o "$APP/Contents/MacOS/SonyGrab" SonyGrab.m
+    -framework Cocoa -framework WebKit -o "$APP/Contents/MacOS/SonyGrab" SonyGrab.m
 
 cat > "$APP/Contents/Resources/launch.sh" <<'LAUNCH'
 #!/bin/bash
 # Launcher: line up the outside tools, pick the python to run on, then become
-# the server. Started by the app's front end (SonyGrab.m), which stays in the
-# Dock for as long as this runs. Everything here degrades rather than failing,
-# except for having no python at all.
+# the server. Started by the app's front end (SonyGrab.m), which shows the
+# server's page in its window for as long as this runs. Everything here
+# degrades rather than failing, except for having no python at all.
 #
 # Nothing in here may write inside the app. It is sealed when it is built, and
 # macOS treats a downloaded app whose seal is broken as damaged. The log and
@@ -317,8 +318,9 @@ self_update >> "$LOG" 2>&1
 cd "$HERE"
 
 # Become the server. The front end is waiting on this process, and takes its
-# end as the moment to leave the Dock.
-exec "$PY" $PYFLAGS server.py >> "$LOG" 2>&1
+# end as the moment to quit. When the front end has a window ready for the
+# page, the server is told not to open a browser tab as well.
+exec "$PY" $PYFLAGS server.py ${SONYGRAB_WINDOW:+--no-open} >> "$LOG" 2>&1
 LAUNCH
 
 chmod +x "$APP/Contents/Resources/launch.sh"
