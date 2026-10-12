@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SonyGrab</title>
+<style>
+:root{
+  --bg:#f6f6f7; --panel:#fff; --ink:#16171a; --muted:#6b6f76; --line:#e3e4e8;
+  --accent:#2f6feb; --accent-ink:#fff; --ok:#1a7f4b; --warn:#8a5a12; --err:#c0392b;
+  --warnbg:rgba(224,164,74,.14); --okbg:rgba(26,127,75,.09); --errbg:rgba(192,57,43,.09);
+  --row:#fff; --row-sel:#eef3fe; --chip:#f0f1f4;
+  --radius:10px; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#141518; --panel:#1c1e22; --ink:#eceef1; --muted:#9aa0a8; --line:#2b2e34;
+    --accent:#5b8ef5; --accent-ink:#0d1220; --ok:#4ec98a; --warn:#e0a44a; --err:#ef6f60;
+    --warnbg:rgba(224,164,74,.12); --okbg:rgba(78,201,138,.10); --errbg:rgba(239,111,96,.10);
+    --row:#1c1e22; --row-sel:#232a3a; --chip:#262a30;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.3);
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:840px;margin:0 auto;padding:26px 20px 150px}
+h1{font-size:19px;margin:0;letter-spacing:-.01em;font-weight:650}
+header{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+#quitBtn{font-size:12.5px;padding:4px 11px}
+.tabs{display:flex;gap:4px;margin-bottom:18px;background:var(--chip);padding:3px;
+  border-radius:9px;width:fit-content}
+.tabs button{background:none;border:0;padding:6px 15px;border-radius:7px;cursor:pointer;
+  font:inherit;color:var(--muted);font-weight:550}
+.tabs button.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);margin-bottom:15px;overflow:hidden}
+.card h2{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+  margin:0;padding:13px 16px 0;font-weight:640;display:flex;align-items:center;gap:8px}
+.card .body{padding:12px 16px 16px}
+button{font:inherit;color:inherit;background:var(--chip);border:1px solid var(--line);
+  padding:6px 12px;border-radius:7px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--muted)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:600}
+button.primary:hover:not(:disabled){filter:brightness(1.08)}
+button.danger{color:var(--err)}
+.row-btns{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.muted{color:var(--muted)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+select,input[type=text],input[type=number]{font:inherit;background:var(--chip);color:var(--ink);
+  border:1px solid var(--line);border-radius:7px;padding:5px 9px}
+input[type=range]{accent-color:var(--accent);vertical-align:middle}
+label.ck{display:flex;align-items:center;gap:6px;cursor:pointer}
+label.ck input{accent-color:var(--accent);width:15px;height:15px;margin:0;flex:none}
+
+.vol{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:8px;cursor:pointer;margin-bottom:7px;background:var(--row)}
+.vol:hover{border-color:var(--accent)}
+.vol.sel{border-color:var(--accent);background:var(--row-sel)}
+.badge{font-size:10.5px;padding:2px 7px;border-radius:99px;background:var(--chip);color:var(--muted);
+  text-transform:uppercase;letter-spacing:.05em;font-weight:650}
+.badge.sony{background:var(--accent);color:var(--accent-ink)}
+
+.filters{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px 12px}
+.filters button{padding:4px 10px;font-size:12.5px;border-radius:99px}
+.dates{border-top:1px solid var(--line);max-height:340px;overflow:auto}
+.d{display:grid;grid-template-columns:22px 1fr auto;gap:12px;align-items:center;
+  padding:11px 16px;border-bottom:1px solid var(--line);cursor:pointer;background:var(--row)}
+.d:last-child{border-bottom:0}
+.d:hover,.d.on{background:var(--row-sel)}
+.d input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin:0}
+.d .dt{font-weight:600;letter-spacing:-.01em}
+.d .wk{color:var(--muted);font-weight:400;margin-left:7px;font-size:12.5px}
+.d .meta{color:var(--muted);font-size:12.5px;margin-top:1px}
+.d .sz{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px;white-space:nowrap}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;background:var(--chip);margin-right:5px}
+
+.opt-group{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.opt-group:first-child{border-top:0;padding-top:0;margin-top:0}
+.opt-head{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.opt-head .t{font-weight:600}
+.opt-body{padding-left:22px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:13px}
+.opt-body.off{opacity:.4;pointer-events:none}
+.hint{font-size:12px;color:var(--muted);padding-left:22px;margin-top:7px}
+.sw{position:relative;width:36px;height:21px;flex:none}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw span{position:absolute;inset:0;background:var(--chip);border:1px solid var(--line);
+  border-radius:99px;transition:.15s;cursor:pointer}
+.sw span:before{content:"";position:absolute;width:15px;height:15px;left:2px;top:2px;
+  background:var(--muted);border-radius:50%;transition:.15s}
+.sw input:checked+span{background:var(--accent);border-color:transparent}
+.sw input:checked+span:before{transform:translateX(15px);background:#fff}
+
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
+  border-top:1px solid var(--line);box-shadow:0 -4px 24px rgba(0,0,0,.07);padding:12px 20px}
+.bar .in{max-width:840px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.tally{flex:1;min-width:250px}
+.tally .big{font-size:15px;font-weight:650;letter-spacing:-.01em}
+.tally .dest{color:var(--muted);font-size:12.5px;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar button.primary{padding:9px 20px}
+
+.track{height:6px;background:var(--chip);border-radius:99px;overflow:hidden;margin:10px 0 8px}
+.fill{height:100%;background:var(--accent);width:0;transition:width .25s ease}
+.fill.ok{background:var(--ok)} .fill.err{background:var(--err)}
+.log{max-height:200px;overflow:auto;background:var(--chip);border-radius:8px;padding:9px 11px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.7;color:var(--muted)}
+.log div{white-space:pre-wrap;word-break:break-all}
+.box{padding:9px 12px;border-radius:8px;font-size:13px;margin-bottom:10px}
+.box.err{background:var(--errbg);border:1px solid var(--err);color:var(--err)}
+.box.ok{background:var(--okbg);border:1px solid var(--ok);color:var(--ok)}
+.box.warn{background:var(--warnbg);border:1px solid var(--warn);color:var(--warn)}
+.empty{padding:26px 16px;text-align:center;color:var(--muted)}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);
+  border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hide{display:none !important}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin-top:4px}
+.kv b{font-weight:600}
+.savings{font-size:13px;margin-top:8px;padding-left:22px}
+.arrow{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>SonyGrab</h1><span class="muted" style="font-size:12.5px">card → disk → social</span>
+    <span style="flex:1"></span>
+    <button id="quitBtn" onclick="doQuit()" title="Stop the SonyGrab server">Quit</button>
+  </header>
+
+  <div class="tabs">
+    <button id="tabImport" class="on" onclick="showTab('import')">Import from card</button>
+    <button id="tabComp" onclick="showTab('compress')">Compress a video</button>
+  </div>
+
+  <!-- ============================ IMPORT ============================== -->
+  <div id="paneImport">
+    <div class="card">
+      <h2>1 &nbsp;Card</h2>
+      <div class="body">
+        <div id="vols"></div>
+        <div class="row-btns" style="margin-top:10px">
+          <button onclick="loadCards()">Look again</button>
+          <span id="cardHint" class="muted" style="font-size:12.5px"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2 &nbsp;Dates</h2>
+      <div class="filters" id="filters"></div>
+      <div class="dates" id="dates"><div class="empty">Insert a card and choose it above.</div></div>
+    </div>
+
+    <div class="card">
+      <h2>3 &nbsp;Destination</h2>
+      <div class="body">
+        <div class="row-btns">
+          <button onclick="browse('dest')">Choose folder…</button>
+          <input type="text" id="dest" style="flex:1;min-width:250px" placeholder="Destination folder">
+        </div>
+        <div class="opt-body" style="padding-left:0;margin-top:11px">
+          <label class="ck"><input type="checkbox" id="kJpeg" checked> JPEG / HEIF</label>
+          <label class="ck"><input type="checkbox" id="kRaw" checked> RAW</label>
+          <label class="ck"><input type="checkbox" id="kVideo" checked> Video</label>
+          <span style="flex:1"></span>
+          <label class="ck">Folders
+            <select id="layout">
+              <option value="by-day" selected>One per date</option>
+              <option value="flat">All in one</option>
+              <option value="by-type">By type</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>4 &nbsp;Social versions</h2>
+      <div class="body">
+
+        <div class="opt-group">
+          <div class="opt-head">
+            <label class="sw"><input type="checkbox" id="pOn" checked><span></span></label>
+            <span class="t">Resize photos</span>
+          </div>
+          <div class="opt-body" id="pBody">
+            <label class="ck">Long edge <select id="pSize"></select></label>
+            <label class="ck">Quality <input type="range" id="pQual" min="60" max="95" value="85" style="width:110px">
+              <span class="mono" id="pQualV">85</span></label>
+            <label class="ck"><input type="checkbox" id="pGps" checked> Remove GPS location</label>
+          </div>
+          <div class="hint" id="pHint"></div>
+        </div>
+
+        <div class="opt-group">
+          <div class="opt-head">
+            <label class="sw"><input type="checkbox" id="vOn" checked><span></span></label>
+            <span class="t">Compress video</span>
+          </div>
+          <div class="opt-body" id="vBody">
+            <label class="ck">For <select id="vPreset"></select></label>
+            <label class="ck">Target
+              <select id="vMode">
+                <option value="quality" selected>Best quality</option>
+                <option value="size">Fit under…</option>
+              </select>
+            </label>
+            <label class="ck hide" id="vSizeWrap">
+              <input type="number" id="vSize" value="200" min="5" max="4000" style="width:76px"> MB
+            </label>
+            <label class="ck"><input type="checkbox" id="vFast"> Fast (hardware)</label>
+          </div>
+          <div class="hint" id="vHint"></div>
+        </div>
+
+        <div class="opt-group">
+          <div class="opt-head">
+            <label class="sw"><input type="checkbox" id="keepOrig"><span></span></label>
+            <span class="t">Also copy the full-size originals</span>
+          </div>
+          <div class="hint">Off by default: you get just the social versions, one folder
+            per date, and the originals stay on the card. Turn it on and the full-size
+            files are copied too, with the social versions in a
+            <span class="mono">Social/</span> subfolder.
+            <b>While this is off, the card is your only copy</b> — don't format it until
+            you've pulled anything you want to keep.</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================== COMPRESS ============================= -->
+  <div id="paneCompress" class="hide">
+    <div class="card">
+      <h2>1 &nbsp;Video</h2>
+      <div class="body">
+        <div class="row-btns">
+          <button onclick="browse('cPath', true)">Choose video…</button>
+          <input type="text" id="cPath" style="flex:1;min-width:250px" placeholder="Path to a video file">
+          <button onclick="doProbe()">Read it</button>
+        </div>
+        <div id="cInfo" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2 &nbsp;Settings</h2>
+      <div class="body">
+        <div class="opt-body" style="padding-left:0">
+          <label class="ck">For <select id="cPreset"></select></label>
+          <label class="ck">Target
+            <select id="cMode">
+              <option value="quality" selected>Best quality</option>
+              <option value="size">Fit under…</option>
+            </select>
+          </label>
+          <label class="ck hide" id="cSizeWrap">
+            <input type="number" id="cSize" value="200" min="5" max="4000" style="width:76px"> MB
+          </label>
+          <label class="ck"><input type="checkbox" id="cFast"> Fast (hardware)</label>
+        </div>
+        <div class="row-btns" style="margin-top:12px">
+          <button onclick="browse('cDest')">Output folder…</button>
+          <input type="text" id="cDest" style="flex:1;min-width:230px" placeholder="Same folder as the video">
+        </div>
+        <div id="cEst" style="margin-top:11px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ PROGRESS ============================ -->
+  <div class="card hide" id="progCard">
+    <h2 id="progTitle">Working</h2>
+    <div class="body">
+      <div id="progMsg" style="font-weight:600"></div>
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <div class="muted mono" id="progStats"></div>
+      <div id="progBoxes" style="margin-top:11px"></div>
+      <div class="log hide" id="log"></div>
+      <div class="row-btns" style="margin-top:11px">
+        <button class="danger hide" id="cancelBtn" onclick="cancelJob()">Cancel</button>
+        <button class="hide" id="revealBtn" onclick="reveal()">Show in Finder</button>
+        <button class="hide" id="againBtn" onclick="resetRun()">Do more</button>
+        <button id="logBtn" onclick="toggleLog()">Show details</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bar" id="bar">
+  <div class="in">
+    <div class="tally">
+      <div class="big" id="tally">Nothing selected</div>
+      <div class="dest" id="tallyDest"></div>
+    </div>
+    <button class="primary" id="go" disabled onclick="start()">Import</button>
+  </div>
+</div>
+
+<script>
+const TOKEN = "__TOKEN__";
+const api = async (p, b) => {
+  const r = await fetch(p, {method: b ? "POST" : "GET",
+    headers: {"X-Token": TOKEN, "Content-Type": "application/json"},
+    body: b ? JSON.stringify(b) : undefined});
+  const j = await r.json().catch(() => ({error: "Bad response from the server."}));
+  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+};
+const $ = id => document.getElementById(id);
+
+let TAB="import", CARD=null, FILES=[], DAYS=[], PICKED=new Set(), DEF={}, POLL=null,
+    PROBE=null, PLAN=null, PLANREQ=0;
+
+const human = n => { if(!n) return "0 B"; const u=["B","KB","MB","GB","TB"]; let i=0;
+  while(n>=1024&&i<4){n/=1024;i++;} return (i===0?n.toFixed(0):n.toFixed(1))+" "+u[i]; };
+const plural=(n,s,p)=>n+" "+(n===1?s:(p||s+"s"));
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtSec=s=>{s=Math.round(s); if(s<60)return s+"s"; const m=Math.floor(s/60);
+  return m<60?`${m}m ${s%60}s`:`${Math.floor(m/60)}h ${m%60}m`;};
+const prettyDate=d=>{const[y,m,dd]=d.split("-").map(Number); if(!y)return d;
+  return new Date(y,m-1,dd).toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"});};
+const weekday=d=>{const[y,m,dd]=d.split("-").map(Number); if(!y)return "";
+  return new Date(y,m-1,dd).toLocaleDateString(undefined,{weekday:"long"});};
+
+function showTab(t){
+  TAB=t;
+  $("tabImport").classList.toggle("on", t==="import");
+  $("tabComp").classList.toggle("on", t==="compress");
+  $("paneImport").classList.toggle("hide", t!=="import");
+  $("paneCompress").classList.toggle("hide", t!=="compress");
+  $("go").textContent = t==="import" ? "Import" : "Compress";
+  t==="import" ? updateTally() : updateCompressTally();
+}
+
+// ------------------------------------------------------------------ cards
+async function loadCards(){
+  const el=$("vols");
+  el.innerHTML='<div class="muted"><span class="spin"></span> Looking for cards…</div>';
+  try{
+    const {cards}=await api("/api/cards");
+    if(!cards.length){
+      el.innerHTML='<div class="muted">No camera card found. Insert one and press <b>Look again</b>.</div>';
+      return;
+    }
+    el.innerHTML="";
+    cards.forEach(c=>{
+      const d=document.createElement("div");
+      d.className="vol"+(CARD===c.path?" sel":"");
+      d.onclick=()=>pickCard(c);
+      d.innerHTML=`<div style="flex:1"><div style="font-weight:600">${esc(c.name)}</div>`+
+        `<div class="muted mono">${esc(c.path)}</div></div>`+
+        (c.is_sony?'<span class="badge sony">Sony</span>':'<span class="badge">Card</span>')+
+        `<span class="muted" style="font-size:12.5px">${human(c.total_bytes-c.free_bytes)} used</span>`;
+      el.appendChild(d);
+    });
+    if(cards.length===1 && !CARD) pickCard(cards[0]);
+  }catch(e){ el.innerHTML=`<div class="box err">${esc(e.message)}</div>`; }
+}
+
+async function pickCard(c){
+  CARD=c.path; loadCards();
+  $("dates").innerHTML='<div class="empty"><span class="spin"></span> Reading capture dates…</div>';
+  $("filters").innerHTML="";
+  try{
+    const r=await api("/api/scan",{card:c.path});
+    FILES=r.files; DAYS=r.days; PICKED=new Set();
+    if(!FILES.length){ $("dates").innerHTML='<div class="empty">No photos or videos on this card.</div>'; }
+    else{
+      renderFilters();
+      const n=DAYS.find(d=>d.day!=="unknown"); if(n) PICKED.add(n.day);
+      renderDays();
+    }
+    $("cardHint").textContent=`${plural(FILES.length,"file")} across ${plural(DAYS.length,"date")}`;
+  }catch(e){ $("dates").innerHTML=`<div class="box err" style="margin:14px">${esc(e.message)}</div>`; }
+  updateTally();
+}
+
+function renderFilters(){
+  const now=new Date(), iso=d=>d.toISOString().slice(0,10);
+  const ago=n=>{const d=new Date(now); d.setDate(d.getDate()-n); return iso(d);};
+  const tm=iso(now).slice(0,7);
+  const sets=[["Newest date",()=>{const d=DAYS.find(x=>x.day!=="unknown");return d?[d.day]:[];}],
+    ["Today",()=>DAYS.filter(d=>d.day===iso(now)).map(d=>d.day)],
+    ["Last 7 days",()=>DAYS.filter(d=>d.day>=ago(6)).map(d=>d.day)],
+    ["This month",()=>DAYS.filter(d=>d.day.startsWith(tm)).map(d=>d.day)],
+    ["Everything",()=>DAYS.map(d=>d.day)],["None",()=>[]]];
+  const el=$("filters"); el.innerHTML="";
+  sets.forEach(([l,fn])=>{const b=document.createElement("button");b.textContent=l;
+    b.onclick=()=>{PICKED=new Set(fn());renderDays();updateTally();};el.appendChild(b);});
+}
+
+function renderDays(){
+  const el=$("dates"); el.innerHTML="";
+  DAYS.forEach(d=>{
+    const on=PICKED.has(d.day), known=d.day!=="unknown";
+    const row=document.createElement("div");
+    row.className="d"+(on?" on":"");
+    row.onclick=e=>{if(e.target.tagName!=="INPUT"){
+      PICKED.has(d.day)?PICKED.delete(d.day):PICKED.add(d.day); renderDays(); updateTally();}};
+    const bits=[];
+    if(d.photos) bits.push(`<span class="pill">${plural(d.photos,"photo")}</span>`);
+    if(d.video)  bits.push(`<span class="pill">${plural(d.video,"video")}</span>`);
+    if(d.raw)    bits.push(`<span class="pill">${d.raw} RAW</span>`);
+    const span=(d.first&&d.last&&d.first!==d.last)?` · ${d.first}–${d.last}`:"";
+    row.innerHTML=`<input type="checkbox" ${on?"checked":""} onchange="togDay('${d.day}',this.checked)">`+
+      `<div><div class="dt">${known?esc(prettyDate(d.day)):"Date unknown"}`+
+      (known?`<span class="wk">${esc(weekday(d.day))}</span>`:"")+`</div>`+
+      `<div class="meta">${bits.join("")}${span}</div></div>`+
+      `<div class="sz">${human(d.bytes)}</div>`;
+    el.appendChild(row);
+  });
+}
+function togDay(d,on){on?PICKED.add(d):PICKED.delete(d); renderDays(); updateTally();}
+
+// ----------------------------------------------------------------- config
+function kinds(){const k=[];if($("kJpeg").checked)k.push("jpeg");
+  if($("kRaw").checked)k.push("raw");if($("kVideo").checked)k.push("video");return k;}
+function photoCfg(){return{enabled:$("pOn").checked, long_edge:+$("pSize").value,
+  quality:+$("pQual").value, strip_gps:$("pGps").checked};}
+function videoCfg(pre,mode,size,fast){return{enabled:$("vOn").checked, preset:pre??$("vPreset").value,
+  mode:mode??$("vMode").value, target_mb:+(size??$("vSize").value), fast:fast??$("vFast").checked};}
+function importBody(){return{card:CARD, days:[...PICKED], kinds:kinds(),
+  dest:$("dest").value.trim(), layout:$("layout").value,
+  keep_originals:$("keepOrig").checked, photo:photoCfg(), video:videoCfg()};}
+
+function syncEnables(){
+  $("pBody").classList.toggle("off", !$("pOn").checked);
+  $("vBody").classList.toggle("off", !$("vOn").checked);
+  $("vSizeWrap").classList.toggle("hide", $("vMode").value!=="size");
+  $("cSizeWrap").classList.toggle("hide", $("cMode").value!=="size");
+  $("pQualV").textContent=$("pQual").value;
+  const ps=(DEF.video_presets||[]).find(p=>p.key===$("vPreset").value);
+  $("vHint").textContent=ps?ps.note:"";
+  const sz=(DEF.photo_sizes||[]).find(s=>String(s.long_edge)===$("pSize").value);
+  $("pHint").textContent = sz ? (sz.long_edge===0
+    ? "Re-encoded at your chosen quality, but kept at full resolution."
+    : `A 6000×4000 frame becomes about ${sz.long_edge}×${Math.round(sz.long_edge*2/3)}.`) : "";
+}
+
+// ------------------------------------------------------------------ tally
+async function updateTally(){
+  if(TAB!=="import") return;
+  const k=new Set(kinds());
+  const sel=FILES.filter(f=>PICKED.has(f.day)&&k.has(f.kind));
+  const dest=$("dest").value.trim();
+  if(!sel.length){
+    $("tally").textContent = PICKED.size?"Nothing matches those file types":"No dates selected";
+    $("tallyDest").textContent = dest?"→ "+dest:"Choose a destination";
+    $("go").disabled=true; return;
+  }
+  $("go").disabled=!dest;
+  const photos=sel.filter(f=>f.kind!=="video").length, videos=sel.filter(f=>f.kind==="video").length;
+  const bytes=sel.reduce((a,f)=>a+f.size,0);
+  const parts=[]; if(photos)parts.push(plural(photos,"photo")); if(videos)parts.push(plural(videos,"video"));
+  $("tally").innerHTML=`${parts.join(" · ")} · ${human(bytes)}`+
+    `<span class="muted" style="font-weight:400"> from ${plural(PICKED.size,"date")}</span>`;
+  $("tallyDest").textContent=dest?"→ "+dest:"Choose a destination";
+
+  if(!CARD) return;
+  const my=++PLANREQ;
+  try{
+    const p=await api("/api/plan", importBody());
+    if(my!==PLANREQ) return;
+    PLAN=p;
+    const seg=[];
+    if(p.keep_originals) seg.push(`${human(p.original_bytes)} originals`);
+    const social=p.social_photo_bytes+p.social_video_bytes;
+    if(social) seg.push(`~${human(social)} social`);
+    $("tallyDest").textContent=`${seg.join(" + ")} → ${dest||"choose a destination"}`;
+  }catch(e){ /* keep the simple tally */ }
+}
+
+// --------------------------------------------------------------- compress
+async function doProbe(){
+  const p=$("cPath").value.trim();
+  if(!p) return;
+  $("cInfo").innerHTML='<div class="muted"><span class="spin"></span> Reading…</div>';
+  try{
+    const r=await api("/api/probe",{path:p});
+    if(!r.ok){ $("cInfo").innerHTML=`<div class="box err">${esc(r.error)}</div>`; PROBE=null; }
+    else{
+      PROBE=r;
+      const m=Math.floor(r.duration/60), s=Math.round(r.duration%60);
+      $("cInfo").innerHTML=`<div class="kv">`+
+        `<b>Resolution</b><span>${r.display_w}×${r.display_h} · ${r.fps.toFixed(0)} fps</span>`+
+        `<b>Length</b><span>${m}:${String(s).padStart(2,"0")}</span>`+
+        `<b>Size</b><span>${human(r.size)} · ${(r.bitrate/1e6).toFixed(1)} Mbps</span>`+
+        `<b>Codec</b><span>${esc(r.vcodec)}${r.acodec?" / "+esc(r.acodec):" · no audio"}`+
+          `${r.is_hdr?` · <span style="color:var(--warn)">${esc(r.hdr_kind)} HDR</span>`:""}</span>`+
+        `</div>`;
+    }
+  }catch(e){ $("cInfo").innerHTML=`<div class="box err">${esc(e.message)}</div>`; PROBE=null; }
+  updateCompressTally();
+}
+
+function updateCompressTally(){
+  if(TAB!=="compress") return;
+  if(!PROBE||!PROBE.ok){
+    $("tally").textContent="Choose a video"; $("tallyDest").textContent="";
+    $("go").disabled=true; $("cEst").innerHTML=""; return;
+  }
+  const key=$("cPreset").value, pl=(PROBE.plans||{})[key];
+  const mode=$("cMode").value, tmb=+$("cSize").value;
+  let est, label;
+  if(mode==="size"){ est=tmb*1024*1024; label=`about ${human(est)}`; }
+  else if(pl){ est=(pl.est_low+pl.est_high)/2; label=`about ${human(pl.est_low)}–${human(pl.est_high)}`; }
+  else { label="—"; }
+  const ratio=est?(PROBE.size/est).toFixed(1):"?";
+  $("tally").innerHTML=`${human(PROBE.size)} <span class="arrow">→</span> ${label}`+
+    (est?`<span class="muted" style="font-weight:400"> · ${ratio}× smaller</span>`:"");
+  $("tallyDest").textContent=($("cDest").value.trim()||"Same folder as the video");
+  $("go").disabled=false;
+
+  let html="";
+  if(pl){
+    html+=`<div class="kv"><b>Output</b><span>${pl.out_w}×${pl.out_h} · H.264 · AAC</span></div>`;
+    (pl.warnings||[]).forEach(w=>html+=`<div class="box warn" style="margin-top:9px">${esc(w)}</div>`);
+    (pl.notes||[]).forEach(n=>html+=`<div class="hint" style="padding-left:0">${esc(n)}</div>`);
+  }
+  $("cEst").innerHTML=html;
+}
+
+// ------------------------------------------------------------------- run
+async function start(){
+  if(TAB==="import") return startImport();
+  return startCompress();
+}
+
+async function startImport(){
+  const b=importBody();
+  const p=PLAN||{};
+  const lines=[];
+  const dates=[...PICKED].sort().reverse();
+  lines.push(dates.length<=3 ? dates.map(prettyDate).join(", ")
+    : `${dates.length} dates (${prettyDate(dates[dates.length-1])} – ${prettyDate(dates[0])})`);
+  let msg=`Import ${plural(p.photos||0,"photo")} and ${plural(p.videos||0,"video")}\n\n`+
+    `From: ${lines[0]}\n`;
+  if(b.keep_originals) msg+=`Originals:      ${human(p.original_bytes||0)}\n`;
+  if(b.photo.enabled&&p.social_photos) msg+=`Social photos:  ~${human(p.social_photo_bytes||0)}\n`;
+  if(b.video.enabled&&p.social_videos) msg+=`Social videos:  ~${human(p.social_video_bytes||0)}\n`;
+  msg+=`\nTo: ${b.dest}\n\nThe card will not be modified.`;
+  if(!confirm(msg)) return;
+  await launch("/api/import", b, "Importing");
+}
+
+async function startCompress(){
+  const b={path:$("cPath").value.trim(), dest:$("cDest").value.trim(),
+    video:{enabled:true, preset:$("cPreset").value, mode:$("cMode").value,
+           target_mb:+$("cSize").value, fast:$("cFast").checked}};
+  await launch("/api/compress", b, "Compressing");
+}
+
+async function launch(url, body, title){
+  $("progTitle").textContent=title;
+  $("progCard").classList.remove("hide");
+  $("progCard").scrollIntoView({behavior:"smooth",block:"nearest"});
+  $("go").disabled=true;
+  ["revealBtn","againBtn"].forEach(i=>$(i).classList.add("hide"));
+  $("cancelBtn").classList.remove("hide");
+  $("progBoxes").innerHTML="";
+  try{
+    await api(url, body);
+    POLL=setInterval(poll,450); poll();
+  }catch(e){
+    $("progBoxes").innerHTML=`<div class="box err">${esc(e.message)}</div>`;
+    $("cancelBtn").classList.add("hide");
+    TAB==="import"?updateTally():updateCompressTally();
+  }
+}
+
+async function poll(){
+  let p; try{ p=await api("/api/progress"); }catch{ return; }
+  const f=$("fill");
+  f.style.width=Math.min(100,p.overall_pct)+"%";
+  f.className="fill"+(p.state==="done"?" ok":p.state==="error"?" err":"");
+
+  const busy=["copying","photos","videos"].includes(p.state);
+  $("progMsg").innerHTML = busy
+    ? `<span class="spin"></span> ${esc(p.phase_label||p.state)}${p.current?" — "+esc(p.current):""}`
+    : p.state==="done"?"Done":p.state==="cancelled"?"Cancelled"
+    : p.state==="error"?"Finished with problems":"";
+
+  const bits=[];
+  if(p.copy_total) bits.push(`copied ${p.copy_done}/${p.copy_total} · ${human(p.copy_bytes_done)}`);
+  if(p.photo_total) bits.push(`photos ${p.photo_done}/${p.photo_total}`);
+  if(p.video_total) bits.push(`video ${p.video_done}/${p.video_total}`+
+    (p.state==="videos"?` (${p.video_pct.toFixed(0)}%${p.video_eta!=null?", ~"+fmtSec(p.video_eta)+" left":""})`:""));
+  bits.push(fmtSec(p.elapsed));
+  $("progStats").textContent=bits.join("  ·  ");
+  $("log").innerHTML=(p.log||[]).map(l=>`<div>${esc(l)}</div>`).join("");
+
+  if(["done","error","cancelled"].includes(p.state)){
+    clearInterval(POLL); POLL=null;
+    $("cancelBtn").classList.add("hide");
+    $("revealBtn").classList.remove("hide");
+    $("againBtn").classList.remove("hide");
+    const b=$("progBoxes"); b.innerHTML="";
+    if(p.errors&&p.errors.length)
+      b.innerHTML+=`<div class="box err"><b>${plural(p.errors.length,"problem")}</b><br>`+
+        p.errors.slice(0,8).map(esc).join("<br>")+
+        (p.errors.length>8?`<br>…and ${p.errors.length-8} more`:"")+`</div>`;
+    if(p.state==="done"){
+      let m=`Finished in ${fmtSec(p.elapsed)}.`;
+      if(p.social_in) m+=` Social versions: ${human(p.social_in)} → ${human(p.social_out)}`+
+        ` — ${human(p.social_saved)} smaller (${(p.social_in/Math.max(p.social_out,1)).toFixed(1)}×).`;
+      b.innerHTML+=`<div class="box ok">${esc(m)}</div>`;
+      if(p.social_dirs&&p.social_dirs.length)
+        b.innerHTML+=`<div class="hint" style="padding-left:0">Social files in `+
+          p.social_dirs.slice(0,3).map(d=>`<span class="mono">${esc(d)}</span>`).join(", ")+`</div>`;
+    }
+  }
+}
+
+async function cancelJob(){ try{ await api("/api/cancel",{}); }catch{} }
+
+// Keeps the server's idle timer from firing while this tab is open.
+setInterval(()=>{ api("/api/ping").catch(()=>{}); }, 30000);
+
+async function doQuit(){
+  let busy=false;
+  try{ busy=(await api("/api/ping")).busy; }catch{}
+  if(busy && !confirm("Something is still running. Quit anyway and stop it?")) return;
+  if(!busy && !confirm("Stop SonyGrab?\n\nAnything already imported stays on disk. "+
+     "Double-click SonyGrab again whenever you need it.")) return;
+  if(POLL){ clearInterval(POLL); POLL=null; }
+  try{ await api("/api/quit",{}); }catch{}
+  document.body.innerHTML='<div style="max-width:840px;margin:0 auto;padding:60px 20px;'+
+    'font:14px/1.6 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;text-align:center">'+
+    '<div style="font-size:19px;font-weight:650;margin-bottom:8px">SonyGrab stopped</div>'+
+    '<div style="opacity:.65">You can close this tab. Double-click <b>SonyGrab</b> to start it again.</div></div>';
+}
+async function reveal(){
+  const d = TAB==="import" ? $("dest").value.trim()
+          : ($("cDest").value.trim() || $("cPath").value.trim());
+  try{ await api("/api/reveal",{path:d}); }catch(e){ alert(e.message); }
+}
+function resetRun(){ $("progCard").classList.add("hide");
+  TAB==="import"?updateTally():updateCompressTally(); window.scrollTo({top:0,behavior:"smooth"}); }
+function toggleLog(){ const l=$("log"); l.classList.toggle("hide");
+  $("logBtn").textContent=l.classList.contains("hide")?"Show details":"Hide details"; }
+async function browse(target, file){
+  try{ const {path}=await api(file?"/api/browse_file":"/api/browse",{});
+    if(path){ $(target).value=path; save();
+      if(target==="cPath") doProbe(); else TAB==="import"?updateTally():updateCompressTally(); } }
+  catch(e){ alert(e.message); }
+}
+
+const SAVE_IDS=["dest","layout","kJpeg","kRaw","kVideo","pOn","pSize","pQual","pGps",
+  "vOn","vPreset","vMode","vSize","vFast","keepOrig","cPreset","cMode","cSize","cFast","cDest"];
+function save(){ try{ const o={};
+  SAVE_IDS.forEach(i=>{const e=$(i); if(e) o[i]=e.type==="checkbox"?e.checked:e.value;});
+  localStorage.setItem("sonygrab",JSON.stringify(o)); }catch{} }
+function restore(){ try{ const o=JSON.parse(localStorage.getItem("sonygrab")||"{}");
+  SAVE_IDS.forEach(i=>{const e=$(i); if(e&&o[i]!==undefined){
+    if(e.type==="checkbox") e.checked=o[i]; else e.value=o[i];}}); }catch{} }
+
+(async()=>{
+  try{
+    DEF=await api("/api/defaults");
+    $("pSize").innerHTML=(DEF.photo_sizes||[]).map(s=>
+      `<option value="${s.long_edge}"${s.long_edge===2560?" selected":""}>${esc(s.label)}</option>`).join("");
+    const vp=(DEF.video_presets||[]).filter(p=>p.key!=="custom").map(p=>
+      `<option value="${p.key}">${esc(p.label)}</option>`).join("");
+    $("vPreset").innerHTML=vp; $("cPreset").innerHTML=vp;
+    restore();
+    if(!$("dest").value) $("dest").value=DEF.pictures+"/Sony";
+    const warn=[];
+    if(!DEF.has_exiftool) warn.push("<b>exiftool</b> is missing — dates fall back to file timestamps. <span class='mono'>brew install exiftool</span>");
+    if(!DEF.has_ffmpeg) warn.push("<b>ffmpeg</b> is missing — video compression is unavailable. <span class='mono'>brew install ffmpeg</span>");
+    if(!DEF.has_pillow) warn.push("<b>Pillow</b> is missing — photo resizing is unavailable. <span class='mono'>pip3 install Pillow</span>");
+    if(warn.length) document.querySelector("header").insertAdjacentHTML("afterend",
+      `<div class="box warn">${warn.join("<br>")}</div>`);
+    if(!DEF.has_ffmpeg) $("vOn").checked=false;
+    if(!DEF.has_pillow) $("pOn").checked=false;
+  }catch{}
+  SAVE_IDS.forEach(i=>{const e=$(i); if(!e) return;
+    e.addEventListener("change",()=>{save(); syncEnables();
+      TAB==="import"?updateTally():updateCompressTally();});
+    if(e.type==="range") e.addEventListener("input",()=>{$("pQualV").textContent=e.value;});
+    if(e.type==="text"||e.type==="number") e.addEventListener("input",()=>{
+      TAB==="import"?updateTally():updateCompressTally();});});
+  syncEnables();
+  await loadCards();
+  updateTally();
+})();
+</script>
+</body>
+</html>

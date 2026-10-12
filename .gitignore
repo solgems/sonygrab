@@ -1,0 +1,9 @@
+# Built or downloaded, never edited by hand
+SonyGrab.app/
+SonyGrab.zip
+release/
+vendor/
+
+.DS_Store
+__pycache__/
+*.pyc
