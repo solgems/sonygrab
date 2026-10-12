@@ -48,6 +48,14 @@ LOCKFILE = Path.home() / ".sonygrab.lock"
 _lock_handle = None          # held open for the process lifetime
 
 
+def _version() -> str:
+    """The release this code belongs to, or "" when run straight from source."""
+    try:
+        return (HERE / "VERSION").read_text().strip()
+    except OSError:
+        return ""
+
+
 def _set_cancel(v: bool) -> None:
     with LOCK:
         STATE["cancel"] = v
@@ -154,6 +162,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/defaults":
             return self._json({
+                "version": _version(),
                 "home": str(Path.home()),
                 "pictures": str(Path.home() / "Pictures"),
                 "desktop": str(Path.home() / "Desktop"),

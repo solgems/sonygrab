@@ -136,6 +136,7 @@ label.ck input{accent-color:var(--accent);width:15px;height:15px;margin:0;flex:n
 <div class="wrap">
   <header><h1>SonyGrab</h1><span class="muted" style="font-size:12.5px">card → disk → social</span>
     <span style="flex:1"></span>
+    <span class="muted" id="ver" style="font-size:12.5px"></span>
     <button id="quitBtn" onclick="doQuit()" title="Stop the SonyGrab server">Quit</button>
   </header>
 
@@ -671,6 +672,8 @@ function restore(){ try{ const o=JSON.parse(localStorage.getItem("sonygrab")||"{
 (async()=>{
   try{
     DEF=await api("/api/defaults");
+    // "0" is what build_app.sh stamps on a build that is not a release.
+    if(DEF.version) $("ver").textContent = DEF.version==="0" ? "local build" : "v"+DEF.version;
     $("pSize").innerHTML=(DEF.photo_sizes||[]).map(s=>
       `<option value="${s.long_edge}"${s.long_edge===2560?" selected":""}>${esc(s.label)}</option>`).join("");
     const vp=(DEF.video_presets||[]).filter(p=>p.key!=="custom").map(p=>
