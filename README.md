@@ -26,13 +26,16 @@ import, macOS may ask to let it read the card. Click **Allow**.
 
 ## Run it
 
-Double-click **SonyGrab.app**. It opens in your browser — no terminal, no Dock clutter.
+Double-click **SonyGrab.app**. It opens in your browser, and sits in the Dock for as
+long as it is running.
 
-Double-clicking it again while it's already running just reopens the tab rather than
+Clicking the Dock icon, or opening the app again, brings the tab back rather than
 starting a second copy.
 
-**To stop it:** the **Quit** button at the top right of the page. If you forget, it
-shuts itself down after 15 minutes idle (never mid-import).
+**To stop it:** **Quit** from the Dock icon or the menu bar, or the **Quit** button
+at the top right of the page. Both ask first if an import is still running. If you
+close the tab and forget, it quits by itself after 15 minutes idle (never
+mid-import).
 
 Other ways in, if you prefer a terminal:
 
@@ -59,14 +62,24 @@ ffmpeg and exiftool, so it runs on a Mac with nothing installed. See
 A build made this way never updates itself, so it always runs exactly the code
 you built. `./release.sh` makes the ones that do.
 
+Building compiles the app's small front end (`SonyGrab.m`), so the Mac doing
+the building needs Apple's command line tools: `xcode-select --install`. A Mac
+that only runs the app does not.
+
 Then check the build end to end:
 
     ./smoke_test.sh
 
-It starts the built app the way Finder would, with the developer tools and
-Homebrew blocked, imports a pretend card and checks what landed on disk. It
-uses its own home folder and opens no browser window, so it is safe to run
-while a real import is going.
+It runs the built app's launcher with the developer tools and Homebrew blocked,
+imports a pretend card and checks what landed on disk. It uses its own home
+folder and puts nothing on screen, so it is safe to run while a real import is
+going.
+
+    ./update_test.sh
+
+does the same for releasing and self-updating: it cuts releases from a private
+copy of this folder, serves them from a stand-in for GitHub on this Mac, and
+walks an installed copy through each case the updater has to get right.
 
 ## Two tabs
 
@@ -191,33 +204,44 @@ If a copy is already blocked, this clears it without the System Settings trip:
 
     xattr -dr com.apple.quarantine /Applications/SonyGrab.app
 
-### Why the app is unsigned
+### Why macOS still asks on first launch
 
-Deliberate. An ad-hoc signature buys nothing against Gatekeeper, and it seals a
-folder that cannot stay sealed, since the updater rewrites code inside the
-bundle. macOS treats a quarantined bundle whose signature no longer verifies as
-damaged and deletes it outright.
+The app is sealed when it is built, but with an ad hoc signature, not one from
+a registered Apple developer. macOS accepts that for running, and asks before
+the first launch of a downloaded copy.
 
-Paying for an Apple Developer ID and notarizing would remove the first-launch
-dialog, at $99 a year. It would also mean moving the updatable code out of the
-bundle to keep the seal intact.
+Paying for an Apple Developer ID and notarizing would remove that first-launch
+dialog, at $99 a year.
+
+The seal is also why nothing is ever written inside the app once it is built.
+macOS treats a downloaded app whose seal no longer verifies as damaged and will
+not open it at all. Logs go to `~/Library/Logs`, and updates go to
+`~/Library/Application Support/SonyGrab`.
 
 ## Updates
 
 Once installed, a Mac keeps itself current. On launch it asks GitHub for the
-latest release's manifest, and if that is newer than what it has, it pulls the
-changed code into its own bundle. Only the ~100 KB of Python and HTML travels.
-The 160 MB of bundled tools stays put and is versioned separately, so a release
-that needs newer ones is refused rather than half-applied.
+latest release's manifest, and if that is newer than what it has, it downloads
+the new code into `~/Library/Application Support/SonyGrab` and runs it from
+there. The app in Applications is never changed. Only the ~100 KB of Python and
+HTML travels.
 
 Updates are only ever fetched over HTTPS from this repository's releases, and
-every file is checked against the hash in the manifest before anything is
-replaced.
+every file is checked against the hash in the manifest before any of it is
+used. An update is a complete copy of the code and goes in as one folder, so it
+is never half old and half new.
 
-Every failure is "carry on with what we have". No network, a download that
-does not match its hash, a read-only bundle: the app just launches. It only
-ever moves forward, never back to an older release, and never while a copy is
-already running.
+Every failure is "carry on with what we have". No network, or a download that
+does not match its hash: the app just launches. It only ever moves forward,
+never back to an older release, and never while a copy is already running.
+Installing a newer app over an older stored update also just works, because
+the app runs whichever of the two is newer.
+
+What cannot travel as an update is the app around the code: the front end, the
+launcher, and the bundled Python, ffmpeg and exiftool. A release that changes
+any of those needs `VENDOR_REV` raised in both `build_app.sh` and `release.sh`.
+Copies installed before it then keep running what they have, and say in their
+log that the app needs downloading and installing again.
 
 ### Ship a change
 
@@ -265,8 +289,10 @@ Each tool is optional; the UI says so and disables what it can't do.
 ## Files
 
     fetch_vendor.sh  downloads Python, Pillow, ffmpeg and exiftool into vendor/
-    build_app.sh     assembles SonyGrab.app  (--out, --update-url, --version)
+    build_app.sh     assembles and seals SonyGrab.app  (--out, --update-url, --version)
+    SonyGrab.m       the app's front end: Dock icon, reopen, Quit
     smoke_test.sh    end-to-end check of a built app
+    update_test.sh   rehearsal of releasing and self-updating
     release.sh       builds, tests and publishes a release
     THIRD_PARTY.md   what the app bundles, and under which licences
     vendor/          the bundled Python and tools, created by fetch_vendor.sh

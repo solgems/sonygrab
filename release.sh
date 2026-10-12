@@ -12,14 +12,15 @@
 #
 # Installed copies look at <repo>/releases/latest/download on every launch, so
 # publishing is all it takes to reach them. Only the ~100 KB of code travels.
-# The 160 MB of bundled python/ffmpeg/exiftool stays where it is, and is
-# versioned separately so the app can say "this one needs a fresh install"
-# instead of half-updating itself into something broken.
+# The app itself, with its front end and 160 MB of bundled
+# python/ffmpeg/exiftool, stays where it is. That part is versioned separately
+# (VENDOR_REV), so a copy can say "this one needs a fresh install" instead of
+# running new code inside an app that is too old for it.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 CODE=(core.py photo.py compress.py pipeline.py server.py ui.html)
-VENDOR_REV=2                            # bump only when vendor/ itself changes
+VENDOR_REV=3                            # bump when vendor/ or the app around the code changes
 
 die() { echo "$*" >&2; exit 1; }
 
@@ -91,8 +92,13 @@ cp "${CODE[@]}" "$OUT/"
   done
 } > "$OUT/MANIFEST"
 
-# ditto keeps the symbolic links inside the bundle as links.
-ditto -c -k --keepParent "$STAGE/SonyGrab.app" "$OUT/SonyGrab.zip"
+# Files only, with no extended attributes. Left in, each attribute becomes a
+# hidden "._name" entry in the zip, and the Mac unzipping it can turn one of
+# those into a real extra file inside the app, which breaks its seal.
+ditto -c -k --norsrc --noextattr --keepParent "$STAGE/SonyGrab.app" "$OUT/SonyGrab.zip"
+if unzip -l "$OUT/SonyGrab.zip" | grep -qE '/\._|__MACOSX'; then
+  die "The zip still carries hidden metadata entries, so the unzipped app would not open."
+fi
 
 echo "Release $VERSION is in $OUT/"
 sed 's/^/  /' "$OUT/MANIFEST"

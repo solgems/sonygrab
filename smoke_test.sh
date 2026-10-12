@@ -1,7 +1,9 @@
 #!/bin/bash
-# End-to-end check of a built SonyGrab.app. Starts it the way Finder would, on
-# a pretend Mac that has no developer tools and no Homebrew, imports a pretend
-# card through the real HTTP API, and checks what landed on disk.
+# End-to-end check of a built SonyGrab.app. Runs its launcher with the bare
+# environment a Finder launch has, on a pretend Mac that has no developer
+# tools and no Homebrew, imports a pretend card through the real HTTP API, and
+# checks what landed on disk. The front end that puts the icon in the Dock is
+# left out, so nothing appears on screen.
 #
 #   ./smoke_test.sh [path/to/SonyGrab.app] [--quarantined]
 #
@@ -102,10 +104,13 @@ SANDBOX='(version 1)(allow default)
 (deny file-read* (subpath "/Library/Developer") (subpath "/Applications/Xcode.app")
                  (subpath "/opt/homebrew") (subpath "/usr/local"))
 (deny process-exec (literal "/usr/bin/python3") (literal "/usr/bin/xcrun"))'
+sealed() { codesign --verify --deep --strict "$APP"; }
+check "the app's seal verifies as downloaded" sealed
+
 echo "Launching with developer tools and Homebrew blocked"
 env -i HOME="$FAKE_HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin TMPDIR="$WORK/tmp" BROWSER=/usr/bin/true \
   SONYGRAB_NO_UPDATE=1 \
-  /usr/bin/sandbox-exec -p "$SANDBOX" /bin/bash "$APP/Contents/MacOS/SonyGrab"
+  /usr/bin/sandbox-exec -p "$SANDBOX" /bin/bash "$APP/Contents/Resources/launch.sh" &
 LOG="$FAKE_HOME/Library/Logs/SonyGrab.log"
 
 URL=""
@@ -210,6 +215,9 @@ AFTER="$(cd "$OUT" && find . -type f -exec stat -f '%N %z %m' {} + | sort)"
 post /api/quit '{}' >/dev/null
 for _ in $(seq 1 100); do kill -0 "$PID" 2>/dev/null || break; perl -e 'select(undef,undef,undef,0.1)'; done
 if kill -0 "$PID" 2>/dev/null; then bad "server did not quit"; else ok "server quit when asked"; PID=""; fi
+
+# A whole run, quarantine clearing included, must leave the app exactly as built.
+check "nothing was written into the app" sealed
 
 echo "Launcher log:"
 grep '^launcher:' "$LOG" | sed 's/^/        /'

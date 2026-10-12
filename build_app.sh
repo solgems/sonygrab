@@ -5,12 +5,15 @@
 # inside the bundle and the app runs on a Mac with nothing installed. Without
 # it you get the small bundle that leans on whatever python3, ffmpeg, exiftool
 # and Pillow the Mac already has.
+#
+# Building needs Apple's command line tools, for the compiler. Running the
+# result does not.
 set -e
 cd "$(dirname "$0")"
 
 APP="SonyGrab.app"
 VERSION="${SONYGRAB_VERSION:-0}"
-VENDOR_REV="${SONYGRAB_VENDOR_REV:-2}"
+VENDOR_REV="${SONYGRAB_VENDOR_REV:-3}"
 UPDATE_URL="${SONYGRAB_UPDATE_URL:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -56,10 +59,8 @@ cat > "$APP/Contents/Resources/update.conf" <<CONF
 url = $UPDATE_URL
 CONF
 
-# LSArchitecturePriority matters more than it looks. The executable is a shell
-# script, so macOS has no binary to read an architecture from, assumes Intel
-# and starts the launcher under Rosetta -- and on an Apple silicon Mac that
-# has never installed Rosetta, it asks to install it before the app will open.
+# NSAllowsLocalNetworking is for the front end's calls to the server on this
+# Mac, which are plain HTTP to 127.0.0.1.
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -74,24 +75,60 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>SonyGrab</string>
   <key>CFBundleIconFile</key><string>SonyGrab</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
-  <key>LSArchitecturePriority</key><array><string>arm64</string><string>x86_64</string></array>
-  <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict>
 </plist>
 PLIST
 
-cat > "$APP/Contents/MacOS/SonyGrab" <<'LAUNCH'
+# The front end is what macOS runs and shows in the Dock. It is the only
+# compiled part, built for both kinds of Mac so that an Intel one gets as far
+# as the launcher's explanation instead of a bare refusal from the Finder.
+if ! xcrun --find clang >/dev/null 2>&1; then
+  echo "Building needs Apple's command line tools:  xcode-select --install" >&2
+  exit 1
+fi
+xcrun clang -fobjc-arc -O2 -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 \
+    -framework Cocoa -o "$APP/Contents/MacOS/SonyGrab" SonyGrab.m
+
+cat > "$APP/Contents/Resources/launch.sh" <<'LAUNCH'
 #!/bin/bash
-# Launcher: line up the outside tools, pick the python to run on, hand off to
-# the server. Everything here degrades rather than failing, except for having
-# no python at all.
-RES="$(cd "$(dirname "$0")/.." && pwd)/Resources"
-HERE="$RES/app"
+# Launcher: line up the outside tools, pick the python to run on, then become
+# the server. Started by the app's front end (SonyGrab.m), which stays in the
+# Dock for as long as this runs. Everything here degrades rather than failing,
+# except for having no python at all.
+#
+# Nothing in here may write inside the app. It is sealed when it is built, and
+# macOS treats a downloaded app whose seal is broken as damaged. The log and
+# any downloaded update live in the user's Library instead.
+RES="$(cd "$(dirname "$0")" && pwd)"
 VENDOR="$RES/vendor"
-BUNDLE="$(cd "$(dirname "$0")/../.." && pwd)"
+BUNDLE="$(cd "$RES/../.." && pwd)"
+STATE="$HOME/Library/Application Support/SonyGrab"
 LOG="$HOME/Library/Logs/SonyGrab.log"
 mkdir -p "$HOME/Library/Logs"
+
+# True when $1 is a later version than $2. Versions are dotted numbers.
+version_newer() {
+  case "$1" in ""|*[!0-9.]*) return 1 ;; esac
+  [ "$1" != "$2" ] &&
+    [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n | tail -1)" = "$1" ]
+}
+
+# Where this copy looks for updates. A build with no address never updates and
+# never runs anything but the code it was built with.
+UPDATE_URL=""
+if [ -z "${SONYGRAB_NO_UPDATE:-}" ]; then
+  UPDATE_URL="$(sed -n 's/^[[:space:]]*url[[:space:]]*=[[:space:]]*//p' "$RES/update.conf" 2>/dev/null | head -1)"
+fi
+
+# The code to run: what the app was built with, or an update downloaded since,
+# whichever is newer. Installing a newer app over an older update just works.
+HERE="$RES/app"
+if [ -n "$UPDATE_URL" ] &&
+   version_newer "$(cat "$STATE/app/VERSION" 2>/dev/null)" "$(cat "$HERE/VERSION" 2>/dev/null)"; then
+  HERE="$STATE/app"
+fi
 
 # One line per launch. When this is running on someone else's Mac, the log is
 # the only way to see what happened there.
@@ -191,31 +228,21 @@ If it is already there, this copy is incomplete or still blocked by macOS. Downl
 fi
 
 # ------------------------------------------------------------------ updates
-# True when $1 is a later version than $2. Versions are dotted numbers.
-version_newer() {
-  case "$1" in ""|*[!0-9.]*) return 1 ;; esac
-  [ "$1" != "$2" ] &&
-    [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n | tail -1)" = "$1" ]
-}
-
 # Pull code updates from the release server. Every failure path here is
 # "carry on with what we already have" -- an update server that is merely nice
 # to have is a far calmer thing to own than one the app depends on. A Mac that
 # is off the network, or whose server is down, just launches.
 self_update() {
-  local cfg="$RES/update.conf" base proto tmp pid
-  [ -z "${SONYGRAB_NO_UPDATE:-}" ] || return 0
-  [ -f "$cfg" ] || return 0
+  local base="$UPDATE_URL" proto tmp pid
+  [ -n "$base" ] || return 0
 
-  # Never under a copy that is already running. A second double-click in the
-  # middle of an import would otherwise swap its files out from under it.
+  # Never under a copy that is already running. Its files would be swapped out
+  # from under it in the middle of an import.
   pid="$(sed -n 1p "$HOME/.sonygrab.pid" 2>/dev/null)"
   case "$pid" in
     ""|*[!0-9]*) ;;
     *) kill -0 "$pid" 2>/dev/null && return 0 ;;
   esac
-  base="$(sed -n 's/^[[:space:]]*url[[:space:]]*=[[:space:]]*//p' "$cfg" | head -1)"
-  [ -n "$base" ] || return 0
   command -v curl >/dev/null 2>&1 || return 0
 
   # The HTTPS connection is what guarantees these files are the ones in the
@@ -244,35 +271,44 @@ self_update() {
   # whatever older release is still being served.
   version_newer "$newver" "$curver" || { rm -rf "$tmp"; return 0; }
 
-  # The bundled ffmpeg/exiftool are not shipped over the wire, so a release
-  # that needs newer ones has to be refused rather than half-applied.
+  # The front end and the bundled python/ffmpeg/exiftool are not shipped over
+  # the wire, so a release that needs newer ones has to be refused rather than
+  # half-applied.
   want_vendor="$(awk '$1=="vendor"{print $2; exit}' "$tmp/MANIFEST")"
   have_vendor="$(cat "$RES/vendor/REV" 2>/dev/null || echo 1)"
   if [ -n "$want_vendor" ] && [ "$want_vendor" -gt "$have_vendor" ] 2>/dev/null; then
-    echo "update: $newver needs a newer tool bundle; install a fresh copy" >&2
+    echo "update: $newver needs a newer app; download and install it again" >&2
     rm -rf "$tmp"; return 0
   fi
 
-  # Fetch everything and hash-check it all before the bundle is touched, so a
-  # download that dies halfway cannot leave a half-updated app behind.
+  # Fetch everything and hash-check it all before anything is put in place, so
+  # a download that dies halfway leaves nothing behind.
   local kind sum name ok=1
+  mkdir "$tmp/app"
   while read -r kind sum name; do
     [ "$kind" = "file" ] || continue
     if ! curl -fsSL --proto "$proto" --proto-redir "$proto" --max-time 30 \
-           -o "$tmp/$name" "$base/$name" </dev/null; then ok=0; break; fi
-    [ "$(shasum -a 256 "$tmp/$name" | cut -d" " -f1)" = "$sum" ] || { ok=0; break; }
+           -o "$tmp/app/$name" "$base/$name" </dev/null; then ok=0; break; fi
+    [ "$(shasum -a 256 "$tmp/app/$name" | cut -d" " -f1)" = "$sum" ] || { ok=0; break; }
   done < "$tmp/MANIFEST"
   if [ "$ok" != 1 ]; then
     echo "update: download or checksum failed, keeping $curver" >&2
     rm -rf "$tmp"; return 0
   fi
+  echo "$newver" > "$tmp/app/VERSION"
 
-  while read -r kind sum name; do
-    [ "$kind" = "file" ] || continue
-    cp "$tmp/$name" "$HERE/$name" || { echo "update: bundle not writable" >&2; rm -rf "$tmp"; return 0; }
-  done < "$tmp/MANIFEST"
-  echo "$newver" > "$HERE/VERSION" 2>/dev/null || true
-  echo "updated $curver -> $newver"
+  # An update is a complete copy of the code, kept outside the app, and it goes
+  # in as one folder. The code is never half old and half new.
+  rm -rf "$STATE/app.new" "$STATE/app.old"
+  if mkdir -p "$STATE" && cp -R "$tmp/app" "$STATE/app.new" &&
+     { [ ! -e "$STATE/app" ] || mv "$STATE/app" "$STATE/app.old"; } &&
+     mv "$STATE/app.new" "$STATE/app"; then
+    rm -rf "$STATE/app.old"
+    HERE="$STATE/app"
+    echo "updated $curver -> $newver"
+  else
+    echo "update: could not store the update, keeping $curver" >&2
+  fi
   rm -rf "$tmp"
 }
 
@@ -280,28 +316,39 @@ self_update >> "$LOG" 2>&1
 
 cd "$HERE"
 
-# Start detached and exit straight away. macOS then never considers the app
-# "running", so every double-click re-runs this -- and server.py notices an
-# existing instance and just reopens the browser instead of starting a second.
-nohup "$PY" $PYFLAGS server.py >> "$LOG" 2>&1 &
-disown 2>/dev/null || true
-exit 0
+# Become the server. The front end is waiting on this process, and takes its
+# end as the moment to leave the Dock.
+exec "$PY" $PYFLAGS server.py >> "$LOG" 2>&1
 LAUNCH
 
-chmod +x "$APP/Contents/MacOS/SonyGrab"
+chmod +x "$APP/Contents/Resources/launch.sh"
 
-# Clear any quarantine the vendored downloads carried in, so the copy built
-# here is launchable immediately.
+# Clear any quarantine the vendored downloads carried in, then seal the app.
 #
-# Deliberately NOT codesigning the bundle. An ad-hoc signature buys nothing
-# against Gatekeeper, and it seals a directory that cannot stay sealed -- the
-# app writes logs and Python may drop .pyc files inside it. macOS treats a
-# quarantined bundle whose signature fails to verify as damaged and will delete
-# it outright. No signature is strictly safer than a broken one. The Mach-O
-# binaries inside keep their own valid signatures, which is what arm64 needs.
+# A compiled front end makes macOS check a seal over everything in the bundle,
+# and it treats a downloaded app whose seal does not verify as damaged, with
+# no way to open it. So the seal has to be right, and has to stay right: once
+# this line has run, nothing may change inside the app, here or on the Mac it
+# is installed on. That is why updates and logs are kept outside it.
+#
+# The signature is ad hoc, not from a registered Apple developer, so the first
+# launch of a downloaded copy still needs "Open Anyway".
+if [ -n "$(find "$APP" -type l | head -1)" ]; then
+  # Unzipping a download can leave a stray file beside a link, and one stray
+  # file is enough to break the seal.
+  echo "The app contains a symbolic link, which a sealed download cannot carry:" >&2
+  find "$APP" -type l | sed 's/^/  /' >&2
+  echo "Run ./fetch_vendor.sh --force to rebuild vendor/ without it." >&2
+  exit 1
+fi
 xattr -cr "$APP" 2>/dev/null || true
-
 touch "$APP"
+codesign --force --sign - "$APP" 2>/dev/null
+if ! codesign --verify --deep --strict "$APP"; then
+  echo "The app's seal does not verify, so a downloaded copy would not open." >&2
+  exit 1
+fi
+
 if [ -x "$APP/Contents/Resources/vendor/python/bin/python3" ]; then
   echo "Built $APP with its own Python and tools, $(du -sh "$APP" | cut -f1). Needs nothing installed."
 elif [ "$BUNDLED" = yes ]; then

@@ -114,7 +114,7 @@ fi
 # packages out of it, here and in the launcher.
 P="$VENDOR/python"
 PY="$P/bin/python3"
-if [ -x "$PY" ] && "$PY" -B -E -s -c 'from PIL import Image' >/dev/null 2>&1; then
+if [ -x "$PY" ] && [ ! -L "$PY" ] && "$PY" -B -E -s -c 'from PIL import Image' >/dev/null 2>&1; then
   say "python: already here ($("$PY" -V 2>&1 | cut -d" " -f2)), keeping it"
 else
   say "python $PYTHON_VER (about 25 MB)"
@@ -141,7 +141,12 @@ else
          "$L"/lib-dynload/_tkinter* \
          "$L/ensurepip" "$L/lib2to3" \
          "$L/site-packages/pip" "$L"/site-packages/pip-*.dist-info
-  find "$P/bin" -mindepth 1 ! -name python3 ! -name "python${PYTHON_VER%.*}" -delete
+  # One real file called python3 and nothing else in bin. The archive ships
+  # the interpreter as python3.12 with python3 as a link to it, and a link is
+  # trouble inside a sealed app: unzipping a download can leave a stray file
+  # beside it, and one stray file breaks the seal.
+  find "$P/bin" -mindepth 1 ! -name "python${PYTHON_VER%.*}" -delete
+  mv "$P/bin/python${PYTHON_VER%.*}" "$PY"
   xattr -cr "$P" 2>/dev/null || true
 
   # Prove the trimmed interpreter still loads everything the app imports, and
