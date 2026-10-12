@@ -7,7 +7,7 @@
 #   (--no-test skips the end-to-end test)
 #
 # A release is two things in one folder:
-#   SonyGrab.zip                the whole app, for a first install
+#   SonyGrab.dmg                the whole app, for a first install
 #   MANIFEST + the code         what installed copies update themselves from
 #
 # Installed copies look at <repo>/releases/latest/download on every launch, so
@@ -67,7 +67,7 @@ if [ -n "$PUBLISH" ]; then
 fi
 
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/sonygrab-release.XXXXXX")"
-trap 'rm -rf "$STAGE"' EXIT
+trap 'hdiutil detach -quiet "$STAGE/mnt" 2>/dev/null || true; rm -rf "$STAGE"' EXIT
 
 # Built somewhere else on purpose: ./SonyGrab.app may be running right now.
 echo "Building $VERSION"
@@ -92,17 +92,31 @@ cp "${CODE[@]}" "$OUT/"
   done
 } > "$OUT/MANIFEST"
 
-# Files only, with no extended attributes. Left in, each attribute becomes a
-# hidden "._name" entry in the zip, and the Mac unzipping it can turn one of
-# those into a real extra file inside the app, which breaks its seal.
-ditto -c -k --norsrc --noextattr --keepParent "$STAGE/SonyGrab.app" "$OUT/SonyGrab.zip"
-if unzip -l "$OUT/SonyGrab.zip" | grep -qE '/\._|__MACOSX'; then
-  die "The zip still carries hidden metadata entries, so the unzipped app would not open."
-fi
+# A disk image laid out the usual way: the app beside a shortcut to
+# Applications, to be dragged from one onto the other. dmg.DS_Store is the
+# Finder layout for exactly these two names (see dmg_layout.py).
+#
+# An image rather than a zip because there is nothing to unpack. Unzipping can
+# add a stray file inside the app, which breaks its seal and makes macOS call
+# the download damaged.
+mkdir "$STAGE/dmg" "$STAGE/mnt"
+mv "$STAGE/SonyGrab.app" "$STAGE/dmg/"
+ln -s /Applications "$STAGE/dmg/Applications"
+cp dmg.DS_Store "$STAGE/dmg/.DS_Store"
+hdiutil create -quiet -volname SonyGrab -srcfolder "$STAGE/dmg" -fs HFS+ \
+    -format UDZO -imagekey zlib-level=9 -ov "$OUT/SonyGrab.dmg"
+
+# Open it the way a Mac will and check the app inside is exactly as built.
+hdiutil attach -quiet -nobrowse -readonly -mountpoint "$STAGE/mnt" "$OUT/SonyGrab.dmg" ||
+  die "The disk image does not open."
+codesign --verify --deep --strict "$STAGE/mnt/SonyGrab.app" 2>/dev/null ||
+  die "The app inside the disk image does not verify, so it would not open once installed."
+[ -L "$STAGE/mnt/Applications" ] || die "The disk image has no shortcut to Applications."
+hdiutil detach -quiet "$STAGE/mnt"
 
 echo "Release $VERSION is in $OUT/"
 sed 's/^/  /' "$OUT/MANIFEST"
-echo "  SonyGrab.zip  $(du -h "$OUT/SonyGrab.zip" | cut -f1)"
+echo "  SonyGrab.dmg  $(du -h "$OUT/SonyGrab.dmg" | cut -f1)"
 
 if [ -z "$PUBLISH" ]; then
   echo
@@ -116,7 +130,7 @@ git push -q origin HEAD
 gh release create "v$VERSION" "$OUT"/* \
     --target "$(git rev-parse HEAD)" --latest \
     --title "SonyGrab $VERSION" \
-    --notes "Download **SonyGrab.zip** below. Install steps are in the [README](https://github.com/$SLUG#download).
+    --notes "Download **SonyGrab.dmg** below. Install steps are in the [README](https://github.com/$SLUG#download).
 
 Copies that are already installed update themselves the next time they are opened." >/dev/null
 
@@ -131,5 +145,5 @@ done
 
 echo
 echo "Published. Installed copies pick it up the next time they are opened."
-echo "  Download:  https://github.com/$SLUG/releases/latest/download/SonyGrab.zip"
+echo "  Download:  https://github.com/$SLUG/releases/latest/download/SonyGrab.dmg"
 echo "  Page:      https://github.com/$SLUG/releases/latest"

@@ -5,7 +5,7 @@ social-ready versions on the way in.
 
 ## Download
 
-**[Download SonyGrab for Mac](https://github.com/solgems/sonygrab/releases/latest/download/SonyGrab.zip)**
+**[Download SonyGrab for Mac](https://github.com/solgems/sonygrab/releases/latest/download/SonyGrab.dmg)**
 
 For Apple silicon Macs (M1 or newer). About 65 MB, and nothing else needs
 installing.
@@ -13,10 +13,11 @@ installing.
 macOS blocks the first launch, because the app is not signed by a registered
 Apple developer. Getting past that takes a minute, once:
 
-1. In Downloads, drag **SonyGrab** into **Applications**. Do this before
-   opening it. If you see `SonyGrab.zip` instead, double-click it first.
-2. Open SonyGrab from Applications. macOS says it cannot be opened. Click
-   **Done** or **Cancel**. **Do not click Move to Trash.**
+1. Open the downloaded `SonyGrab.dmg`. In the window that appears, drag
+   **SonyGrab** onto **Applications**. Then eject the disk image.
+2. Open SonyGrab from Applications, not from the disk image. macOS says it
+   cannot be opened. Click **Done** or **Cancel**. **Do not click Move to
+   Trash.**
 3. Open **System Settings → Privacy & Security**, scroll down to the note about
    SonyGrab and click **Open Anyway**. Enter your Mac password if asked.
 4. Open SonyGrab again and choose **Open**. Its window appears.
@@ -192,10 +193,10 @@ Send them the link in [Download](#download). The app carries its own Python and
 tools, so the Mac receiving it needs nothing installed. No Homebrew, no pip, no
 developer tools, no Terminal.
 
-Step 1 there matters. macOS runs a downloaded app from a locked temporary copy
-until it has been moved, and the app cannot unblock its own tools from there.
-Once it is in Applications and has been allowed to open, the launcher clears
-the quarantine flag off the bundled Python, ffmpeg and exiftool by itself.
+Step 1 there matters. Run straight from the disk image, the app sits on a
+locked volume and cannot unblock its own tools. Once it is in Applications and
+has been allowed to open, the launcher clears the quarantine flag off the
+bundled Python, ffmpeg and exiftool by itself.
 
 A USB stick avoids the dialog entirely, because quarantine is applied by the
 program doing the downloading rather than by the network. `curl`, `scp` and a
@@ -250,7 +251,7 @@ log that the app needs downloading and installing again.
     ./release.sh 1.0.1 --publish
 
 That builds the app, runs `smoke_test.sh` on it and publishes a GitHub release
-holding both the new `SonyGrab.zip` and the update files. Every installed Mac
+holding both the new `SonyGrab.dmg` and the update files. Every installed Mac
 picks it up the next time the app is opened. Without `--publish` it stops after
 building `release/`, for a look first.
 
@@ -295,6 +296,7 @@ Each tool is optional; the UI says so and disables what it can't do.
     smoke_test.sh    end-to-end check of a built app
     update_test.sh   rehearsal of releasing and self-updating
     release.sh       builds, tests and publishes a release
+    dmg.DS_Store     Finder layout of the disk image (made by dmg_layout.py)
     THIRD_PARTY.md   what the app bundles, and under which licences
     vendor/          the bundled Python and tools, created by fetch_vendor.sh
 

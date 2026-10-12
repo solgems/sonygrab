@@ -19,6 +19,7 @@ mkdir -p "$PROJ" "$SERVED" "$FAKE_HOME" "$APPS" "$WORK/tmp"
 SRV=""; PID=""
 cleanup() {
   [ -n "$SRV" ] && kill "$SRV" 2>/dev/null
+  hdiutil detach -quiet "$WORK/mnt" 2>/dev/null
   [ -n "$PID" ] && kill "$PID" 2>/dev/null
   rm -rf "$WORK"
 }
@@ -31,7 +32,7 @@ nap() { perl -e 'select(undef,undef,undef,0.1)'; }
 
 # A private copy to cut releases from, so this folder is never touched.
 for f in core.py photo.py compress.py pipeline.py server.py ui.html SonyGrab.m SonyGrab.icns \
-         build_app.sh release.sh smoke_test.sh THIRD_PARTY.md licenses vendor; do
+         build_app.sh release.sh smoke_test.sh dmg.DS_Store THIRD_PARTY.md licenses vendor; do
   cp -Rc "$f" "$PROJ/" 2>/dev/null || cp -R "$f" "$PROJ/"
 done
 
@@ -92,8 +93,12 @@ release 1.0.0
 grep -q '^PASS$' "$WORK/release.log" && ok "release.sh built it and its end-to-end test passed" || bad "no PASS from the end-to-end test"
 cp -R "$PROJ/release" "$WORK/rel-1.0.0"; publish "$PROJ/release"
 
-echo "First install, from the published zip"
-curl -fsSL -o "$WORK/tmp/dl.zip" "$SONYGRAB_UPDATE_URL/SonyGrab.zip" && ditto -x -k "$WORK/tmp/dl.zip" "$APPS"
+echo "First install, from the published disk image"
+mkdir "$WORK/mnt"
+curl -fsSL -o "$WORK/tmp/dl.dmg" "$SONYGRAB_UPDATE_URL/SonyGrab.dmg" &&
+  hdiutil attach -quiet -nobrowse -readonly -mountpoint "$WORK/mnt" "$WORK/tmp/dl.dmg" &&
+  ditto "$WORK/mnt/SonyGrab.app" "$APP"
+hdiutil detach -quiet "$WORK/mnt" 2>/dev/null
 sealed && ok "the downloaded app's seal verifies" || bad "the downloaded app's seal does not verify"
 launch; up; expect 1.0.0 "same version published: nothing to do"; quit
 
